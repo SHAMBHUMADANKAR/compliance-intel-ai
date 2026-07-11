@@ -1,0 +1,20 @@
+# Node / Vite
+node_modules/
+dist/
+dist-ssr/
+*.local
+pnpm-debug.log*
+
+# Python / FastAPI
+venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+*.db
+*.sqlite3
+
+# OS / Editor
+.DS_Store
+.vscode/
+.idea/
