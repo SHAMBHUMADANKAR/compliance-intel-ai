@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ComplianceIntel AI — Product Mockup</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#11161d; --panel-2:#161d26; --border:#232b36;
+    --text:#e6ebf1; --text-dim:#8a96a3; --text-faint:#5b6673;
+    --accent:#4f8cff; --accent-soft:#1c2a44;
+    --green:#3fbf7f; --green-soft:#123324;
+    --amber:#e0a940; --amber-soft:#3a2f14;
+    --red:#e0575c; --red-soft:#3a1c1e;
+    --radius:10px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;}
+  a{color:inherit;text-decoration:none;}
+
+  /* ---------- App Shell ---------- */
+  .app{display:flex;height:100vh;overflow:hidden;}
+
+  .sidebar{
+    width:230px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;padding:16px 12px;
+  }
+  .brand{display:flex;align-items:center;gap:8px;padding:6px 8px 18px;}
+  .brand-mark{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,var(--accent),#7c5cff);flex-shrink:0;}
+  .brand-name{font-weight:700;font-size:14.5px;letter-spacing:.2px;}
+  .brand-sub{font-size:10.5px;color:var(--text-faint);margin-top:1px;}
+
+  .nav-group-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);padding:14px 10px 6px;}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--text-dim);
+    cursor:pointer;font-size:13px;margin-bottom:1px;border:1px solid transparent;
+  }
+  .nav-item:hover{background:var(--panel-2);color:var(--text);}
+  .nav-item.active{background:var(--accent-soft);color:#bcd3ff;border-color:#2a3f66;}
+  .nav-item .icon{width:16px;text-align:center;opacity:.85;font-size:13px;}
+
+  .sidebar-footer{margin-top:auto;padding:10px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+  .avatar{width:26px;height:26px;border-radius:50%;background:#2b3644;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-dim);flex-shrink:0;}
+  .who{font-size:12px;}
+  .who .role{color:var(--text-faint);font-size:10.5px;}
+
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);}
+  .topbar{
+    height:52px;flex-shrink:0;border-bottom:1px solid var(--border);display:flex;align-items:center;
+    justify-content:space-between;padding:0 20px;background:rgba(17,22,29,.6);
+  }
+  .topbar-title{font-size:14px;font-weight:600;}
+  .topbar-crumb{font-size:11.5px;color:var(--text-faint);margin-top:1px;}
+  .topbar-right{display:flex;gap:10px;align-items:center;}
+  .badge-org{font-size:11px;color:var(--text-dim);background:var(--panel-2);border:1px solid var(--border);padding:4px 10px;border-radius:20px;}
+
+  .view{display:none;flex:1;overflow-y:auto;padding:22px 26px;}
+  .view.active{display:block;}
+
+  /* ---------- Reusable bits ---------- */
+  .grid{display:grid;gap:14px;}
+  .cols-4{grid-template-columns:repeat(4,1fr);}
+  .cols-3{grid-template-columns:repeat(3,1fr);}
+  .cols-2{grid-template-columns:2fr 1fr;}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;}
+  .card-title{font-size:12px;color:var(--text-faint);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em;}
+  .stat{font-size:26px;font-weight:700;}
+  .stat-sub{font-size:11.5px;color:var(--text-faint);margin-top:2px;}
+
+  .section-title{font-size:15px;font-weight:600;margin:24px 0 10px;}
+  .section-title:first-child{margin-top:0;}
+  .section-desc{font-size:12.5px;color:var(--text-faint);margin:-6px 0 14px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;color:var(--text-faint);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:8px 10px;border-bottom:1px solid var(--border);}
+  td{padding:10px 10px;border-bottom:1px solid var(--border);}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--panel-2);}
+
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 9px;border-radius:20px;font-weight:600;}
+  .pill-green{background:var(--green-soft);color:var(--green);}
+  .pill-amber{background:var(--amber-soft);color:var(--amber);}
+  .pill-red{background:var(--red-soft);color:var(--red);}
+  .pill-dim{background:var(--panel-2);color:var(--text-dim);border:1px solid var(--border);}
+  .dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+  .btn{
+    display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:8px 14px;
+    border-radius:8px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);cursor:pointer;
+  }
+  .btn:hover{border-color:#3a4757;}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn-primary:hover{background:#3d7bef;}
+  .btn-ghost{background:transparent;border-color:transparent;color:var(--text-dim);padding:6px 8px;}
+
+  .upload-zone{
+    border:1.5px dashed var(--border);border-radius:var(--radius);padding:26px;text-align:center;color:var(--text-faint);
+    font-size:12.5px;margin-bottom:18px;
+  }
+  .upload-zone b{color:var(--text-dim);}
+
+  .kv{display:flex;justify-content:space-between;font-size:12.5px;padding:7px 0;border-bottom:1px solid var(--border);}
+  .kv:last-child{border-bottom:none;}
+  .kv .k{color:var(--text-faint);}
+
+  /* ---------- Chat / Audit Workspace ---------- */
+  .chat-shell{display:grid;grid-template-columns:1fr 300px;gap:16px;height:calc(100vh - 130px);}
+  .chat-panel{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+  .phase-bar{display:flex;gap:0;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--panel-2);}
+  .phase{flex:1;text-align:center;font-size:10.5px;color:var(--text-faint);position:relative;padding-bottom:10px;}
+  .phase::after{content:"";position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--border);}
+  .phase.done{color:var(--green);}
+  .phase.done::after{background:var(--green);}
+  .phase.active{color:var(--accent);font-weight:700;}
+  .phase.active::after{background:var(--accent);}
+
+  .chat-scroll{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;}
+  .msg{max-width:80%;padding:11px 14px;border-radius:10px;font-size:13px;}
+  .msg-user{align-self:flex-end;background:var(--accent-soft);color:#dbe6ff;border:1px solid #2a3f66;}
+  .msg-agent{align-self:flex-start;background:var(--panel-2);border:1px solid var(--border);}
+  .cite{display:inline-block;margin-top:8px;font-size:11px;background:var(--bg);border:1px solid var(--border);padding:5px 9px;border-radius:6px;color:var(--text-dim);}
+  .chat-input{display:flex;gap:8px;padding:14px;border-top:1px solid var(--border);}
+  .chat-input input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;}
+  .chat-input input:focus{outline:none;border-color:var(--accent);}
+
+  .side-panel{display:flex;flex-direction:column;gap:14px;}
+
+  /* ---------- Findings / Report ---------- */
+  .finding{border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;background:var(--panel);}
+  .finding-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .finding-ref{font-size:12.5px;font-weight:700;color:var(--text-dim);}
+  .finding-body{font-size:12.5px;color:var(--text-dim);}
+  .finding-excerpt{margin-top:8px;font-size:12px;background:var(--bg);border-left:2px solid var(--accent);padding:8px 10px;color:var(--text-faint);border-radius:0 6px 6px 0;}
+
+  /* ---------- Login ---------- */
+  .login-wrap{height:100%;display:flex;align-items:center;justify-content:center;}
+  .login-card{width:340px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:28px;}
+  .login-card input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:10px;}
+  .field-label{font-size:11.5px;color:var(--text-faint);margin-bottom:5px;display:block;}
+
+  .toggle{width:34px;height:19px;border-radius:20px;background:var(--border);position:relative;cursor:pointer;flex-shrink:0;}
+  .toggle.on{background:var(--accent);}
+  .toggle-knob{width:15px;height:15px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .15s;}
+  .toggle.on .toggle-knob{left:17px;}
+
+  .empty-note{font-size:11.5px;color:var(--text-faint);background:var(--panel-2);border:1px dashed var(--border);border-radius:8px;padding:10px 12px;margin-top:10px;}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div>
+        <div class="brand-name">ComplianceIntel AI</div>
+        <div class="brand-sub">self-hosted · air-gapped</div>
+      </div>
+    </div>
+
+    <div class="nav-group-label">Workspace</div>
+    <div class="nav-item active" data-view="dashboard"><span class="icon">▤</span> Dashboard</div>
+    <div class="nav-item" data-view="vault"><span class="icon">▦</span> Document Vault</div>
+    <div class="nav-item" data-view="docdetail"><span class="icon">▧</span> Document Detail</div>
+    <div class="nav-item" data-view="chat"><span class="icon">◈</span> Audit Workspace</div>
+    <div class="nav-item" data-view="report"><span class="icon">▥</span> Audit Report</div>
+
+    <div class="nav-group-label">Configuration</div>
+    <div class="nav-item" data-view="standards"><span class="icon">§</span> Standards Library</div>
+    <div class="nav-item" data-view="integrations"><span class="icon">⇄</span> Integrations (MCP)</div>
+    <div class="nav-item" data-view="admin"><span class="icon">⚙</span> Admin Settings</div>
+
+    <div class="nav-group-label">System</div>
+    <div class="nav-item" data-view="notifications"><span class="icon">◔</span> Notifications</div>
+    <div class="nav-item" data-view="login"><span class="icon">⇥</span> Login Screen</div>
+
+    <div class="sidebar-footer">
+      <div class="avatar">SM</div>
+      <div class="who">
+        <div>Shambhuling</div>
+        <div class="role">Compliance Officer</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="topbar-title">Dashboard</div>
+        <div class="topbar-crumb" id="topbar-crumb">Acme Financial Corp · Organization overview</div>
+      </div>
+      <div class="topbar-right">
+        <span class="badge-org">● all inference local — 0 external calls</span>
+        <span class="badge-org">Acme Financial Corp</span>
+      </div>
+    </div>
+
+    <!-- ===================== DASHBOARD ===================== -->
+    <div class="view active" id="view-dashboard">
+      <div class="grid cols-4">
+        <div class="card">
+          <div class="card-title">Documents Ingested</div>
+          <div class="stat">184</div>
+          <div class="stat-sub">6 currently processing</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Open Findings</div>
+          <div class="stat">12</div>
+          <div class="stat-sub">3 flagged non-compliant</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Audit Reports</div>
+          <div class="stat">27</div>
+          <div class="stat-sub">4 generated this week</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Active Standards</div>
+          <div class="stat">3</div>
+          <div class="stat-sub">SOC2 · ISO 27001 · HIPAA</div>
+        </div>
+      </div>
+
+      <div class="section-title">Recent Audit Reports</div>
+      <table>
+        <tr><th>Report</th><th>Standard</th><th>Findings</th><th>Status</th><th>Created</th></tr>
+        <tr><td>Access Control Review Q3</td><td>SOC2</td><td>8</td><td><span class="pill pill-amber"><span class="dot"></span>needs review</span></td><td>2 days ago</td></tr>
+        <tr><td>Data Retention Audit</td><td>ISO 27001</td><td>5</td><td><span class="pill pill-green"><span class="dot"></span>compliant</span></td><td>4 days ago</td></tr>
+        <tr><td>PHI Handling Assessment</td><td>HIPAA</td><td>11</td><td><span class="pill pill-red"><span class="dot"></span>non-compliant</span></td><td>1 week ago</td></tr>
+        <tr><td>Vendor Risk Snapshot</td><td>SOC2</td><td>3</td><td><span class="pill pill-green"><span class="dot"></span>compliant</span></td><td>1 week ago</td></tr>
+      </table>
+
+      <div class="section-title">Ingestion Queue</div>
+      <table>
+        <tr><th>File</th><th>Uploaded By</th><th>Status</th></tr>
+        <tr><td>infra_config_export_2026.json</td><td>D. Reyes</td><td><span class="pill pill-dim"><span class="dot"></span>embedding</span></td></tr>
+        <tr><td>vendor_soc2_report.pdf</td><td>S. Madankar</td><td><span class="pill pill-dim"><span class="dot"></span>parsing</span></td></tr>
+        <tr><td>hipaa_baa_template.docx</td><td>S. Madankar</td><td><span class="pill pill-green"><span class="dot"></span>ready</span></td></tr>
+      </table>
+    </div>
+
+    <!-- ===================== DOCUMENT VAULT ===================== -->
+    <div class="view" id="view-vault">
+      <div class="upload-zone">
+        <b>Drag & drop files here</b> or click to browse — PDF, DOCX, XLSX supported.<br>
+        Duplicate uploads are detected by content hash and skipped automatically.
+      </div>
+
+      <table>
+        <tr><th>Name</th><th>Type</th><th>Uploaded</th><th>Status</th><th></th></tr>
+        <tr><td>Information_Security_Policy_v4.pdf</td><td>PDF</td><td>Jul 9, 2026</td><td><span class="pill pill-green"><span class="dot"></span>ready</span></td><td><a class="btn btn-ghost">view</a></td></tr>
+        <tr><td>Access_Control_Matrix.xlsx</td><td>XLSX</td><td>Jul 9, 2026</td><td><span class="pill pill-green"><span class="dot"></span>ready</span></td><td><a class="btn btn-ghost">view</a></td></tr>
+        <tr><td>infra_config_export_2026.json</td><td>JSON</td><td>Jul 11, 2026</td><td><span class="pill pill-amber"><span class="dot"></span>embedding</span></td><td><a class="btn btn-ghost">view</a></td></tr>
+        <tr><td>vendor_soc2_report.pdf</td><td>PDF</td><td>Jul 11, 2026</td><td><span class="pill pill-dim"><span class="dot"></span>parsing</span></td><td><a class="btn btn-ghost">view</a></td></tr>
+        <tr><td>legacy_dr_plan_2021.pdf</td><td>PDF</td><td>Jun 28, 2026</td><td><span class="pill pill-red"><span class="dot"></span>failed</span></td><td><a class="btn btn-ghost">retry</a></td></tr>
+        <tr><td>HIPAA_BAA_template.docx</td><td>DOCX</td><td>Jun 21, 2026</td><td><span class="pill pill-green"><span class="dot"></span>ready</span></td><td><a class="btn btn-ghost">view</a></td></tr>
+      </table>
+    </div>
+
+    <!-- ===================== DOCUMENT DETAIL ===================== -->
+    <div class="view" id="view-docdetail">
+      <div class="grid cols-2">
+        <div class="card">
+          <div class="card-title">Extracted Chunks (12 of 48)</div>
+          <div style="font-size:12.5px; color:var(--text-dim); line-height:1.7;">
+            <p><b>§ 4.2 Access Control — p.12</b><br>
+            "All privileged accounts must undergo mandatory password rotation every 90 days, enforced via the central identity provider..."</p>
+            <p><b>§ 4.3 Multi-Factor Authentication — p.13</b><br>
+            "MFA is required for all remote access to production systems, including VPN and administrative consoles..."</p>
+            <p><b>§ 4.4 Access Review Cadence — p.14</b><br>
+            "Quarterly access reviews are conducted by system owners and documented in the access review log..."</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Document Metadata</div>
+          <div class="kv"><span class="k">Filename</span><span>Information_Security_Policy_v4.pdf</span></div>
+          <div class="kv"><span class="k">Pages</span><span>34</span></div>
+          <div class="kv"><span class="k">Chunks indexed</span><span>48</span></div>
+          <div class="kv"><span class="k">Content hash</span><span>a19f...e02c</span></div>
+          <div class="kv"><span class="k">Uploaded by</span><span>S. Madankar</span></div>
+          <div class="kv"><span class="k">Status</span><span class="pill pill-green"><span class="dot"></span>ready</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== AUDIT WORKSPACE (CHAT) ===================== -->
+    <div class="view" id="view-chat">
+      <div class="chat-shell">
+        <div class="chat-panel">
+          <div class="phase-bar">
+            <div class="phase done">Planning</div>
+            <div class="phase done">Retrieving</div>
+            <div class="phase active">Reasoning</div>
+            <div class="phase">Validating</div>
+            <div class="phase">Answering</div>
+          </div>
+          <div class="chat-scroll">
+            <div class="msg msg-user">Does our current access control policy satisfy SOC2 CC6.1?</div>
+            <div class="msg msg-agent">
+              Cross-referencing your Information Security Policy against SOC2 CC6.1 (logical access controls)...<br><br>
+              Your policy requires 90-day password rotation, mandatory MFA on all remote access, and quarterly access reviews — this covers the core CC6.1 requirements for restricting logical access.
+              <div class="cite">📄 Information_Security_Policy_v4.pdf — p.12, §4.2</div>
+              <div class="cite">📄 Information_Security_Policy_v4.pdf — p.14, §4.4</div>
+            </div>
+            <div class="msg msg-user">What about our infra config — does it actually enforce that?</div>
+          </div>
+          <div class="chat-input">
+            <input type="text" value="What about our infra config — does it actually enforce that?" readonly>
+            <button class="btn btn-primary">Send</button>
+          </div>
+        </div>
+
+        <div class="side-panel">
+          <div class="card">
+            <div class="card-title">Scope</div>
+            <div class="kv"><span class="k">Standard</span><span>SOC2 — CC6.1</span></div>
+            <div class="kv"><span class="k">Corpus</span><span>184 documents</span></div>
+            <div class="kv"><span class="k">Agent</span><span>local · 14B · temp 0.0</span></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Retrieved Evidence (3)</div>
+            <div class="empty-note">Information_Security_Policy_v4.pdf · p.12<br>Access_Control_Matrix.xlsx · row 18<br>infra_config_export_2026.json · iam.rotation</div>
+          </div>
+          <button class="btn" style="width:100%;justify-content:center;">■ Cancel generation</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== AUDIT REPORT ===================== -->
+    <div class="view" id="view-report">
+      <div class="grid cols-2" style="margin-bottom:18px;">
+        <div>
+          <div style="font-size:16px;font-weight:700;">Access Control Review Q3</div>
+          <div class="section-desc" style="margin-top:4px;">Standard: SOC2 · Generated Jul 9, 2026 · by S. Madankar</div>
+        </div>
+        <div style="text-align:right;">
+          <button class="btn">Export PDF</button>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-head">
+          <span class="finding-ref">CC6.1 — Logical Access Controls</span>
+          <span class="pill pill-green"><span class="dot"></span>compliant</span>
+        </div>
+        <div class="finding-body">Password rotation, MFA, and quarterly access reviews are documented and consistent with observed infra configuration.</div>
+        <div class="finding-excerpt">"All privileged accounts must undergo mandatory password rotation every 90 days..." — Information_Security_Policy_v4.pdf, p.12</div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-head">
+          <span class="finding-ref">CC6.6 — Boundary Protection</span>
+          <span class="pill pill-amber"><span class="dot"></span>needs review</span>
+        </div>
+        <div class="finding-body">Policy references a firewall segmentation standard, but no supporting evidence document was found in the corpus for the current network diagram.</div>
+        <div class="finding-excerpt">No grounded citation available — flagged for human review rather than a confident verdict.</div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-head">
+          <span class="finding-ref">CC6.3 — Role-Based Access</span>
+          <span class="pill pill-red"><span class="dot"></span>non-compliant</span>
+        </div>
+        <div class="finding-body">Access Control Matrix shows 4 service accounts with standing admin privileges, contradicting the least-privilege clause in §4.1.</div>
+        <div class="finding-excerpt">"Access shall be granted strictly on a least-privilege basis..." — Information_Security_Policy_v4.pdf, p.11 — contradicted by Access_Control_Matrix.xlsx, rows 22–25.</div>
+      </div>
+    </div>
+
+    <!-- ===================== STANDARDS LIBRARY ===================== -->
+    <div class="view" id="view-standards">
+      <div class="grid cols-3">
+        <div class="card">
+          <div class="card-title">SOC2 Type II</div>
+          <div style="font-size:13px;">64 controls · built-in</div>
+          <div class="stat-sub" style="margin-top:8px;">Trust Services Criteria — Security, Availability, Confidentiality</div>
+        </div>
+        <div class="card">
+          <div class="card-title">ISO 27001:2022</div>
+          <div style="font-size:13px;">93 controls · built-in</div>
+          <div class="stat-sub" style="margin-top:8px;">Annex A information security controls</div>
+        </div>
+        <div class="card">
+          <div class="card-title">HIPAA Security Rule</div>
+          <div style="font-size:13px;">54 controls · built-in</div>
+          <div class="stat-sub" style="margin-top:8px;">Administrative, physical, technical safeguards</div>
+        </div>
+      </div>
+      <div class="section-title">Org-Custom Frameworks</div>
+      <table>
+        <tr><th>Name</th><th>Controls</th><th>Source</th></tr>
+        <tr><td>Acme Internal Vendor Security Baseline</td><td>22</td><td>Uploaded — vendor_baseline_v2.pdf</td></tr>
+      </table>
+      <button class="btn" style="margin-top:14px;">+ Upload custom framework</button>
+    </div>
+
+    <!-- ===================== INTEGRATIONS (MCP) ===================== -->
+    <div class="view" id="view-integrations">
+      <div class="section-desc">Registered MCP tool servers the agent may call as read-only evidence sources during an audit. Write/destructive tools are never exposed here.</div>
+      <table>
+        <tr><th>Tool Server</th><th>Capability</th><th>Scope</th><th>Enabled</th></tr>
+        <tr>
+          <td>infra-inventory-readonly</td>
+          <td><span class="pill pill-dim">read-only</span></td>
+          <td>Live infrastructure asset inventory</td>
+          <td><div class="toggle on"><div class="toggle-knob"></div></div></td>
+        </tr>
+        <tr>
+          <td>identity-provider-lookup</td>
+          <td><span class="pill pill-dim">read-only</span></td>
+          <td>User/group/role snapshot from IdP</td>
+          <td><div class="toggle on"><div class="toggle-knob"></div></div></td>
+        </tr>
+        <tr>
+          <td>vendor-contract-db</td>
+          <td><span class="pill pill-dim">read-only</span></td>
+          <td>Third-party vendor risk records</td>
+          <td><div class="toggle"><div class="toggle-knob"></div></div></td>
+        </tr>
+      </table>
+      <div class="empty-note">All tool calls are logged with tool name, parameters, and organization_id for audit-trail purposes.</div>
+    </div>
+
+    <!-- ===================== ADMIN ===================== -->
+    <div class="view" id="view-admin">
+      <div class="section-title">Organization</div>
+      <div class="grid cols-2">
+        <div class="card">
+          <div class="kv"><span class="k">Organization name</span><span>Acme Financial Corp</span></div>
+          <div class="kv"><span class="k">Retention policy</span><span>365 days</span></div>
+          <div class="kv"><span class="k">Active reasoning model</span><span>local · 14B instruct</span></div>
+          <div class="kv"><span class="k">Embedding model</span><span>bge-small-en-v1.5</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Deployment</div>
+          <div class="kv"><span class="k">Mode</span><span>self-hosted / VPC</span></div>
+          <div class="kv"><span class="k">External network calls</span><span>0 (enforced)</span></div>
+        </div>
+      </div>
+
+      <div class="section-title">Users</div>
+      <table>
+        <tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr>
+        <tr><td>Shambhuling Madankar</td><td>shambhumadan143@gmail.com</td><td><span class="pill pill-dim">admin</span></td><td><a class="btn btn-ghost">edit</a></td></tr>
+        <tr><td>D. Reyes</td><td>d.reyes@acme.co</td><td><span class="pill pill-dim">security_architect</span></td><td><a class="btn btn-ghost">edit</a></td></tr>
+        <tr><td>J. Alvarez</td><td>j.alvarez@acme.co</td><td><span class="pill pill-dim">compliance_officer</span></td><td><a class="btn btn-ghost">edit</a></td></tr>
+        <tr><td>External Auditor</td><td>auditor@thirdparty.com</td><td><span class="pill pill-dim">auditor · read-only</span></td><td><a class="btn btn-ghost">edit</a></td></tr>
+      </table>
+      <button class="btn" style="margin-top:14px;">+ Invite user</button>
+    </div>
+
+    <!-- ===================== NOTIFICATIONS ===================== -->
+    <div class="view" id="view-notifications">
+      <div class="section-title">Background Tasks</div>
+      <table>
+        <tr><th>Task</th><th>Type</th><th>Progress</th><th>Status</th></tr>
+        <tr><td>infra_config_export_2026.json</td><td>embedding</td><td>62%</td><td><span class="pill pill-amber"><span class="dot"></span>running</span></td></tr>
+        <tr><td>vendor_soc2_report.pdf</td><td>parsing</td><td>18%</td><td><span class="pill pill-amber"><span class="dot"></span>running</span></td></tr>
+        <tr><td>PHI Handling Assessment audit run</td><td>agent query</td><td>100%</td><td><span class="pill pill-green"><span class="dot"></span>complete</span></td></tr>
+        <tr><td>legacy_dr_plan_2021.pdf</td><td>parsing</td><td>—</td><td><span class="pill pill-red"><span class="dot"></span>failed: unreadable scan, OCR unavailable</span></td></tr>
+      </table>
+    </div>
+
+    <!-- ===================== LOGIN ===================== -->
+    <div class="view" id="view-login">
+      <div class="login-wrap">
+        <div class="login-card">
+          <div class="brand" style="padding:0 0 20px;">
+            <div class="brand-mark"></div>
+            <div>
+              <div class="brand-name">ComplianceIntel AI</div>
+              <div class="brand-sub">self-hosted · air-gapped</div>
+            </div>
+          </div>
+          <label class="field-label">Work email</label>
+          <input type="text" value="shambhumadan143@gmail.com" readonly>
+          <label class="field-label">Password</label>
+          <input type="password" value="••••••••••••">
+          <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px;">Sign in</button>
+          <div class="empty-note">First run on this deployment? You'll be prompted to create your organization after sign-in.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const items = document.querySelectorAll('.nav-item');
+  const titles = {
+    dashboard: ["Dashboard", "Acme Financial Corp · Organization overview"],
+    vault: ["Document Vault", "184 documents · 6 processing"],
+    docdetail: ["Information_Security_Policy_v4.pdf", "Document Vault / Detail"],
+    chat: ["Audit Workspace", "Scoped to SOC2 · CC6.1"],
+    report: ["Access Control Review Q3", "Audit Reports / Detail"],
+    standards: ["Standards Library", "3 built-in · 1 custom framework"],
+    integrations: ["Integrations", "Model Context Protocol tool servers"],
+    admin: ["Admin Settings", "Organization & user management"],
+    notifications: ["Notifications", "Background task monitor"],
+    login: ["Login", "Unauthenticated entry point"],
+  };
+  items.forEach(item => {
+    item.addEventListener('click', () => {
+      items.forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      const key = item.dataset.view;
+      document.getElementById('view-' + key).classList.add('active');
+      document.getElementById('topbar-title').textContent = titles[key][0];
+      document.getElementById('topbar-crumb').textContent = titles[key][1];
+    });
+  });
+</script>
+
+</body>
+</html>
