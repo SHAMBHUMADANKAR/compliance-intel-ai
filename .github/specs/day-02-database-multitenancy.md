@@ -9,12 +9,15 @@
 In a multi-tenant SaaS product, the single most dangerous class of bug is **data leaking between customers** — Org A seeing Org B's confidential compliance documents. This day builds the schema and query discipline that makes that class of bug structurally hard to write, not just something you promise to remember.
 
 ## Stack
-- PostgreSQL — the relational store of record
-- SQLAlchemy 2.0 (async engine, `asyncpg` driver) — Python ORM/query layer
-- Alembic — schema migrations
+- Supabase Local Stack — local emulator running PostgreSQL, Auth, and Storage in Docker
+- SQLAlchemy 2.0 (async engine, `asyncpg` driver) — Python ORM/query layer for FastAPI
+- Supabase CLI — manages schema migrations and local dev lifecycle
 
 ## Core concept: tenant isolation
-Every table that stores anything belonging to a specific customer ("organization" in this product) carries an `organization_id` column that is **NOT NULL** and **indexed**. Every single query against that table includes an `organization_id = ?` filter — no exceptions, no "just this once" queries. This is enforced two ways: at the application layer (a mandatory function argument, see below) and, later, as a second belt-and-suspenders layer using Postgres row-level security.
+Every table that stores anything belonging to a specific organization carries an `organization_id` column that is **NOT NULL** and **indexed**. Every single query against that table includes an `organization_id = ?` filter — no exceptions. 
+Furthermore, tenant isolation is strictly enforced at the database level using Postgres **Row-Level Security (RLS)**.
+
+---
 
 ## Schema
 
@@ -26,10 +29,9 @@ organizations
   retention_policy_days (int, nullable)
 
 users
-  id (uuid, pk)
+  id (uuid, pk)                        -- maps to auth.users.id from Supabase Auth
   organization_id (uuid, fk -> organizations.id, NOT NULL, indexed)
   email (text, unique per org)
-  hashed_password (text)
   role (enum: admin, compliance_officer, security_architect, auditor)
   created_at (timestamptz)
 
@@ -69,9 +71,14 @@ standards
 ### Learning note: why `organization_id` is duplicated onto `findings`
 `findings` could technically get its org scope by joining through `audit_reports`. We put it directly on `findings` anyway. This is a deliberate trade: a little extra storage and a little extra write-time bookkeeping, in exchange for making it *impossible* to write a `findings` query that forgets tenant scoping through a missed or broken join. When in doubt in this codebase, denormalize the tenant key onto the leaf table — cheap insurance against an expensive class of bug.
 
+---
+
 ## The enforcement pattern (this is the part that matters most)
 
-Every repository/query function takes `organization_id` as an **explicit, required, first-class argument** — never optional, never defaulted, never inferred:
+We employ a "belt-and-suspenders" security architecture:
+
+### 1. Application-Level Scoping
+Every repository/query function takes `organization_id` as an **explicit, required, first-class argument**:
 
 ```python
 async def get_document(db: AsyncSession, organization_id: UUID, document_id: UUID) -> Document:
@@ -83,21 +90,23 @@ async def get_document(db: AsyncSession, organization_id: UUID, document_id: UUI
     return result.scalar_one_or_none()
 ```
 
-**Rule for any code — yours or an AI assistant's — added to this repo:** if a `select()` against `documents`, `audit_reports`, `findings`, `users`, or any future tenant-scoped table doesn't include an `organization_id` predicate, that's a bug, full stop, not a style nit. Day 15's test suite includes an automated check that greps for `select(` calls missing this filter — but the discipline starts here, on Day 2, before there's any code to check.
+### 2. Database-Level Row-Level Security (RLS)
+We enable RLS on every tenant-scoped table. When executing queries from the frontend or through the API, policies isolate data based on the authenticated user's organization:
+```sql
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON documents
+  USING (organization_id = (auth.jwt() -> 'app_metadata' ->> 'org_id')::uuid);
+```
+During local testing, we verify that session contexts correctly filter out rows from other tenants.
 
 ## Migrations
-Alembic autogenerate handles structure, but manually verify every migration touching a tenant table adds `organization_id` as `NOT NULL` with an index — autogenerate sometimes gets nullability wrong on a first pass, and a nullable tenant key is the single worst thing this schema could ship with.
-
-## Row-level security (defense in depth — optional for Day 2, worth knowing about)
-Postgres supports a second, database-level enforcement layer:
-```sql
-CREATE POLICY tenant_isolation ON documents
-  USING (organization_id = current_setting('app.current_org')::uuid);
-```
-The FastAPI session would set `app.current_org` from the verified JWT (Day 3) at the start of each request. This means even a buggy query that *forgot* the `organization_id` filter would still be blocked by Postgres itself. It's not required to ship Day 2, but understand it conceptually now — it's the "seatbelt AND airbag" argument for why application-level filtering alone, while necessary, isn't the only layer a serious multi-tenant product would eventually want.
+We manage the schema using native Supabase SQL migrations placed in `supabase/migrations/`. These files are applied locally via `npx supabase db reset` or `npx supabase migration up`.
 
 ## Deliverables checklist
-- [ ] Alembic migrations for all tables above, each tenant table's `organization_id` verified NOT NULL + indexed
+- [ ] Local Supabase initialized and running via CLI (`npx supabase init` + `npx supabase start`)
+- [ ] SQL migrations for all tables above, with all tenant tables' `organization_id` verified NOT NULL + indexed
+- [ ] Row-Level Security (RLS) policies defined and enabled on all tenant tables in the migration script
 - [ ] SQLAlchemy models matching the schema
-- [ ] A base repository class/mixin that forces `organization_id` as a required argument on every read/write method
-- [ ] A test: seed two organizations, assert Org A's repository calls never return Org B's rows, even when queried by an ID that exists in Org B
+- [ ] Repository functions that require `organization_id` as a parameter
+- [ ] A test: seed two organizations, and verify that query results and RLS policies prevent Org A from accessing Org B's rows under any circumstances

@@ -85,7 +85,7 @@ Each page describes: purpose, who sees it, what data it shows, what actions it t
 - Select a compliance standard to scope the audit → provided as a parameter on the same call, backed by `GET /api/standards`
 - Stop an in-flight generation → `POST /api/agent/query/{run_id}/cancel`
 
-**Functional rule:** the frontend never talks to Ollama, Qdrant, or the LLM directly. It only ever calls the FastAPI gateway; all AI infrastructure is invisible to the browser.
+**Functional rule:** the frontend never talks to Ollama, Supabase Postgres (pgvector), or the LLM directly. It only ever calls the FastAPI gateway; all AI infrastructure is invisible to the browser.
 
 ### 2.6 Audit Report / Findings
 **Purpose:** The durable, shareable output of an audit — a structured, citable record rather than an ephemeral chat transcript.
@@ -152,11 +152,11 @@ Grouped by responsibility. Every endpoint below sits behind the auth guard and i
 | | `GET /api/documents` | List org documents with ingestion status. |
 | | `GET /api/documents/{id}` | Metadata + extracted chunk list for the viewer. |
 | | `GET /api/documents/{id}/file` | Stream the original file for preview. |
-| | `DELETE /api/documents/{id}` | Remove document and cascade-delete its vectors from Qdrant. |
+| | `DELETE /api/documents/{id}` | Remove document and cascade-delete its vectors from Supabase Postgres (pgvector). |
 | | `POST /api/documents/{id}/reprocess` | Re-queue a failed ingestion. |
 | **Background Tasks** | `GET /api/tasks` | List Celery job states for the org (ingestion, long audits). |
 | | `GET /api/tasks/{task_id}` | Poll one job's status/progress/error detail. |
-| **Search** | `GET /api/search` (internal, used by the agent, not the UI directly) | Hybrid keyword + vector retrieval against Qdrant, cross-encoder re-ranked. |
+| **Search** | `GET /api/search` (internal, used by the agent, not the UI directly) | Hybrid keyword + vector retrieval against Supabase Postgres (pgvector), cross-encoder re-ranked. |
 | **Compliance Agent** | `POST /api/agent/query` | SSE-streamed entry point into the LangGraph audit agent: plan → retrieve → reason → validate → answer. |
 | | `POST /api/agent/query/{run_id}/cancel` | Abort an in-flight generation. |
 | **Standards** | `GET /api/standards` | List built-in and custom compliance frameworks. |
@@ -173,9 +173,9 @@ Grouped by responsibility. Every endpoint below sits behind the auth guard and i
 
 ## 4. Data Flow Summary (Functional, Not Code)
 
-**Ingestion path:** Vault upload → hash check → Celery worker parses file (PDF/XLSX/DOCX) → text chunked → chunks embedded in-process via a local sentence-transformers model → vectors written to Qdrant tagged with `organization_id` → document status flips to `ready` → Notifications tray updates.
+**Ingestion path:** Vault upload → hash check → Celery worker parses file (PDF/XLSX/DOCX) → text chunked → chunks embedded in-process via a local sentence-transformers model → vectors written to Supabase Postgres (pgvector) tagged with `organization_id` → document status flips to `ready` → Notifications tray updates.
 
-**Audit path:** Workspace chat submits a question (optionally scoped to a standard) → LangGraph agent plans sub-questions → hybrid search hits Qdrant filtered by `organization_id` → cross-encoder re-ranks top hits → local LLM (via Ollama) reasons over re-ranked context → validator node checks the answer against a JSON schema and citation requirements, looping back on failure → final answer streamed token-by-token over SSE → on completion, structured findings persisted to the Reports table.
+**Audit path:** Workspace chat submits a question (optionally scoped to a standard) → LangGraph agent plans sub-questions → hybrid search hits Supabase Postgres (pgvector) filtered by `organization_id` → cross-encoder re-ranks top hits → local LLM (via Ollama) reasons over re-ranked context → validator node checks the answer against a JSON schema and citation requirements, looping back on failure → final answer streamed token-by-token over SSE → on completion, structured findings persisted to the Reports table.
 
 **Tenant isolation is the golden rule that touches every path above:** nothing is ever fetched, embedded, searched, or returned without an `organization_id` filter matched against the JWT.
 

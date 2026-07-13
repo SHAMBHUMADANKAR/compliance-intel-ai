@@ -9,49 +9,64 @@
 Day 2 built tenant isolation into the database layer. Today you build the piece that *feeds* `organization_id` into every one of those Day 2 functions safely: authentication. The core lesson is that identity and tenant membership must come from a cryptographically verified token, never from anything the client typed into a form field or URL.
 
 ## Functional recap (from the product's perspective)
-A user lands on Login, enters credentials, and — on their very first login to a brand-new deployment — is prompted to create their organization. After that, every page they visit trusts that they are who the token says they are.
-
-## Backend
+A user lands on Login, enters credentials, and — on their very first login to a brand-new deployment — is prompted to create their organization. After that, every page they visit trusts that they are who the token says they a## Backend
 
 ### Stack
-- `passlib[bcrypt]` — password hashing
-- `python-jose` (or `pyjwt`) — JWT signing/verification
+- `PyJWT` or `PyJWT` — for verifying Supabase-issued JWT signatures using Supabase JWKS (JSON Web Key Sets) or local secret key
 - FastAPI's dependency injection system for reusable "guard" functions
 
 ### Token contract
+Supabase Auth tokens contain a payload structure like:
 ```json
 {
   "sub": "<user_id>",
-  "org": "<organization_id>",
-  "role": "compliance_officer",
-  "exp": 1234567890,
-  "iat": 1234567000
+  "email": "user@example.com",
+  "app_metadata": {
+    "org_id": "<organization_id>",
+    "role": "compliance_officer"
+  },
+  "exp": 1234567890
 }
 ```
-Signed with a server secret (HS256 is fine for a single-node self-hosted deployment; RS256 if the customer wants key rotation later). Access tokens are short-lived (15-30 min); a longer-lived refresh token is stored in an httpOnly, secure cookie and rotated on each use (old refresh token invalidated the moment a new one is issued — limits the damage window if one is ever stolen).
+During registration or organization creation, we write custom triggers in Supabase PostgreSQL (or handle it in an onboarding API route) to add `org_id` and `role` to the user's `app_metadata`.
 
 ### Endpoints
-- `POST /api/auth/login` — verify credentials against `users.hashed_password`, issue access + refresh tokens
-- `POST /api/auth/refresh` — rotate an expiring access token using a valid refresh token
-- `POST /api/auth/logout` — invalidate the current refresh token
-- `POST /api/orgs` — first-run only: create a new organization + its first admin user
+FastAPI relies on Supabase Auth, but exposes helper routes:
+- `POST /api/orgs` — bootstrapping first org, linking to the admin user
+- FastAPI routes decode the incoming bearer token sent by the client.
 
-### The dependency chain (this is the piece that protects every other page)
+### The dependency chain
 ```python
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> AuthContext:
-    payload = decode_and_verify(token)          # raises 401 on bad signature/expiry
-    return AuthContext(user_id=payload["sub"], organization_id=payload["org"], role=payload["role"])
+from fastapi import Security, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt  # or jose
 
-def require_role(*allowed: Role):
+security = HTTPBearer()
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> AuthContext:
+    token = credentials.credentials
+    try:
+        # Decode and verify Supabase JWT
+        payload = jwt.decode(token, settings.SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
+        user_id = payload["sub"]
+        org_id = payload.get("app_metadata", {}).get("org_id")
+        role = payload.get("app_metadata", {}).get("role")
+        
+        if not org_id:
+            raise HTTPException(status_code=401, detail="User organization context missing")
+            
+        return AuthContext(user_id=user_id, organization_id=org_id, role=role)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+def require_role(*allowed: str):
     def _dep(ctx: AuthContext = Depends(get_current_user)):
         if ctx.role not in allowed:
-            raise HTTPException(403)
+            raise HTTPException(status_code=403, detail="Permission denied")
         return ctx
     return _dep
 ```
-Every route handler from Day 4 onward declares `ctx: AuthContext = Depends(get_current_user)` and passes `ctx.organization_id` straight into the Day 2 repository functions — **never** a client-supplied `organization_id` from a path, query string, or JSON body.
-
-**Concrete anti-pattern to reject on sight in review:** a route signature like `def upload(organization_id: UUID, ...)` where that value comes from the request. If the product ever legitimately needs a cross-tenant operation (e.g., a future superadmin tool), that must be an explicit, separately-audited code path — never the default shape of a route.
+Every route handler declares `ctx: AuthContext = Depends(get_current_user)` and passes `ctx.organization_id` straight into the Day 2 repository functions.
 
 ### Role matrix (drives `require_role(...)` calls across every later day)
 
@@ -66,26 +81,25 @@ Every route handler from Day 4 onward declares `ctx: AuthContext = Depends(get_c
 ## Frontend — the Login page
 
 ### Components
-- `LoginForm` (Shadcn `Input`, `Button`, `Card`) — email + password fields, submit calls `POST /api/auth/login`
-- `OnboardingForm` — shown only when the API signals "no organization exists yet" (first-run detection, e.g. a `GET /api/auth/bootstrap-status` check before rendering the form)
-- `AuthProvider` (React context) — holds the decoded (client-side, non-authoritative) token claims for UI purposes only (e.g., showing the user's name), stores the access token in memory (not `localStorage` — see note below), and the refresh flow runs silently on a timer before expiry
+- `LoginForm` (Shadcn `Input`, `Button`, `Card`) — email + password fields, submits directly using `@supabase/supabase-js` `signInWithPassword()`
+- `OnboardingForm` — shown when the authenticated user does not have an `org_id` in their token yet (bootstrap organization context)
+- `AuthProvider` (React context) — wraps `@supabase/supabase-js` client, provides session data, handles automatic token refreshes out-of-the-box
 
 ### Learning note: where to store the token client-side
-Storing the access token in `localStorage` is convenient but exposes it to any XSS vulnerability on the page. This project stores the access token in memory (a React context/state variable, lost on full page reload) and relies on the httpOnly refresh cookie to silently re-establish a session on reload — meaning a stolen XSS payload can't read the refresh token at all, and even the access token is only ever live in memory for its short 15-30 minute window.
+Supabase JS client library handles storing and refreshing tokens automatically (using localStorage/sessionStorage securely or custom cookies in SSR environments).
 
 ### What the Login page actually does, step by step
-1. On mount, `AuthProvider` attempts a silent refresh (`POST /api/auth/refresh` using the httpOnly cookie) — if it succeeds, skip Login and route straight to Dashboard.
-2. If refresh fails, render `LoginForm`.
-3. On submit, call `POST /api/auth/login`; on success, store the access token in memory, route to Dashboard; on failure, show an inline error (never reveal whether it was the email or the password that was wrong — that distinction leaks account existence).
-4. First-run only: if `GET /api/auth/bootstrap-status` reports no organizations exist, render `OnboardingForm` instead, which calls `POST /api/orgs`.
+1. On mount, `AuthProvider` checks the active Supabase session — if valid, inspect JWT `app_metadata.org_id`. If `org_id` exists, route to Dashboard; if missing, route to Onboarding.
+2. If no session exists, render `LoginForm`.
+3. On submit, call Supabase `auth.signInWithPassword(...)`.
+4. On success, check organization claim. If none exists, show `OnboardingForm` which calls `POST /api/orgs` to create a tenant organization and updates Supabase user metadata.
 
 ## AI/ML layer
-None on this page — Login and auth are pure application security, no model involvement. Worth stating explicitly: not every page in this product touches AI, and it's healthy to notice that up front rather than assume every screen needs a model behind it.
+None on this page.
 
 ## Deliverables checklist
-- [ ] `/api/auth/login`, `/refresh`, `/logout`, `/orgs` implemented and tested
-- [ ] `get_current_user` / `require_role` used on every non-public route from this point forward
-- [ ] No route accepts `organization_id` as client input for scoping
-- [ ] Login page: silent-refresh-first flow, first-run onboarding branch, inline error handling
-- [ ] Access token kept in memory only; refresh token in httpOnly cookie
-- [ ] Tests: expired token rejected, tampered signature rejected, wrong-role request 403s
+- [ ] Supabase Auth configured and running locally
+- [ ] `get_current_user` / `require_role` implemented in FastAPI and verified using mock JWTs
+- [ ] Onboarding API `/api/orgs` implemented to link Supabase auth user to newly created organization
+- [ ] Login UI: integrated with `@supabase/supabase-js` client, including custom sign-in/sign-out logic
+- [ ] Tests: verify signature verification, role enforcement, and invalid JWT rejectionests: expired token rejected, tampered signature rejected, wrong-role request 403s

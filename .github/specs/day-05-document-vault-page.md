@@ -24,7 +24,7 @@ FastAPI's `BackgroundTasks` still runs inside the same process serving your HTTP
 `POST /api/documents/upload`:
 1. Stream the incoming file and compute its SHA-256 hash as it arrives (don't buffer the whole file in memory first if avoidable).
 2. Check `documents` for an existing `(organization_id, content_hash)` match. If found, return that existing document immediately — no re-parse, no duplicate storage. This is the "hashing to drop redundant file operations early" the product spec calls for.
-3. If new: persist the raw file to a local/customer-mounted volume (never a public cloud bucket — consistent with the whole product's no-external-calls constraint), insert a `documents` row with `status="queued"`, enqueue `ingest_document.delay(document_id)`, and return the row. This whole handler should return in well under a second regardless of file size, because steps 3 onward are fire-and-forget from the API's perspective.
+3. If new: persist the raw file to a Supabase Storage bucket (never a public cloud bucket — consistent with the whole product's no-external-calls constraint), insert a `documents` row with `status="queued"`, enqueue `ingest_document.delay(document_id)`, and return the row. This whole handler should return in well under a second regardless of file size, because steps 3 onward are fire-and-forget from the API's perspective.
 
 ### Celery task pipeline
 ```
@@ -40,7 +40,7 @@ ingest_document(document_id):
 ### Supporting endpoints
 - `GET /api/documents` — list with status, for the table
 - `GET /api/tasks/{task_id}` — poll one job's Celery status/progress/error, joined with `documents.status`
-- `DELETE /api/documents/{id}` — remove document row + raw file (cascades to Qdrant vectors, Day 6)
+- `DELETE /api/documents/{id}` — remove document row + raw file (cascades to Supabase Postgres (pgvector) vectors, Day 6)
 - `POST /api/documents/{id}/reprocess` — re-enqueue a failed ingestion
 
 ## Frontend

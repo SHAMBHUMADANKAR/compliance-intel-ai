@@ -12,7 +12,7 @@ Day 6 gave you semantic search (find chunks with *similar meaning*). Today you l
 Compliance language is full of exact identifiers that carry almost no semantic signal on their own: "Clause 4.2," "CC6.1," "§164.312(a)(1)." An embedding model sees these as fairly meaningless token sequences — it has no strong sense that "CC6.1" is "close" to anything in particular. A user who asks "does our policy satisfy CC6.1" needs the system to find the *exact string* "CC6.1" wherever it appears, which is precisely what keyword/full-text search is good at and vector search is weak at. Conversely, a user who asks "do we rotate credentials often enough" (no exact terms matching the policy's wording) needs semantic search, which keyword search would miss entirely. Neither approach alone covers both cases — hence *hybrid*.
 
 ## Stack
-- Qdrant dense vector search (from Day 6)
+- Supabase Postgres (pgvector) dense vector search (from Day 6)
 - Postgres full-text search (`tsvector`/`tsquery`) over chunk text — a lightweight, no-new-infrastructure way to get keyword recall
 - A local cross-encoder model (e.g., an `ms-marco-MiniLM`-class model via `sentence-transformers`'s `CrossEncoder`), loaded in-process — same in-process rationale as Day 6's embedding model
 
@@ -20,7 +20,7 @@ Compliance language is full of exact identifiers that carry almost no semantic s
 
 ```python
 def hybrid_search(organization_id, query_text, standard_scope=None, top_k=8):
-    vector_hits  = qdrant.search(query_embedding(query_text), filter={organization_id, standard_scope}, limit=25)
+    vector_hits  = supabase_postgres.search(query_embedding(query_text), filter={organization_id, standard_scope}, limit=25)
     keyword_hits = postgres_fts(query_text, filter={organization_id}, limit=25)
     candidates   = merge_and_dedupe(vector_hits, keyword_hits)   # union by chunk id
     reranked     = cross_encoder.predict([(query_text, c.text) for c in candidates])
