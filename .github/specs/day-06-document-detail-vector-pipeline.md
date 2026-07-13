@@ -15,8 +15,8 @@ A user clicks "view" on a document in the Vault. They see the original file prev
 
 ### Stack
 - `sentence-transformers` (e.g., `bge-small-en-v1.5`) — loaded directly into the Celery worker's Python process
-- Qdrant — self-hosted vector database
-- `qdrant-client` — Python driver
+- Supabase Postgres (pgvector) — self-hosted vector database
+- `supabase_postgres-client` — Python driver
 
 ### What an embedding actually is (plain-language explainer)
 A sentence-transformer model reads a chunk of text and outputs a fixed-length list of numbers (say, 384 of them) — a point in 384-dimensional space. The model is trained so that chunks with similar *meaning* end up close together in that space, even if they don't share exact words. "Password rotation every 90 days" and "credentials must be refreshed quarterly" would land near each other, even though they share almost no vocabulary. This is what lets Day 7's search find relevant policy text even when the user's question is phrased completely differently from the document.
@@ -27,7 +27,7 @@ Split extracted text on detected section/heading boundaries first (using the met
 ### Why embeddings run in-process, not via an HTTP call to Ollama
 A 500-page document can produce thousands of chunks. If each chunk required a network round-trip to a separate Ollama daemon, ingestion would be dominated by network/serialization overhead repeated thousands of times. Loading the embedding model directly into the Celery worker's memory means embedding a batch of chunks is a local, batched matrix multiplication — as fast as the CPU/GPU allows, no network involved. Contrast this with Day 8, where the *reasoning* model runs via Ollama: that call happens once or a few times per user question, not thousands of times per document, so the daemon-isolation tradeoff (crash containment, VRAM management) is worth the overhead there but not here. This asymmetry — small model in-process, large model behind a daemon — is a specific, deliberate design decision worth understanding rather than memorizing.
 
-### Qdrant collection design
+### Supabase Postgres (pgvector) collection design
 ```
 collection: "compliance_chunks"
 vector size: matches the model's output dimension (e.g., 384)
@@ -41,14 +41,14 @@ payload per point:
     "content_hash": "<sha256 of this chunk>"
   }
 ```
-Every write (`upsert`) and every read (`search`, from Day 7 onward) includes an explicit `organization_id` filter. One shared collection across all tenants, filtered by payload, is the right call operationally (versus one Qdrant collection per tenant, which gets unwieldy fast) — but it means the filter is doing *all* the isolation work, so it can never be optional.
+Every write (`upsert`) and every read (`search`, from Day 7 onward) includes an explicit `organization_id` filter. One shared collection across all tenants, filtered by payload, is the right call operationally (versus one Supabase Postgres (pgvector) collection per tenant, which gets unwieldy fast) — but it means the filter is doing *all* the isolation work, so it can never be optional.
 
 ### Pipeline (continuation of Day 5's `embedding` step)
 ```
 embed_chunks(document_id, chunks):
     1. batch chunks (e.g., 32 at a time) through the loaded model
-    2. build a Qdrant PointStruct per chunk, payload includes organization_id + document_id + metadata
-    3. upsert the batch to Qdrant
+    2. build a Supabase Postgres (pgvector) PointStruct per chunk, payload includes organization_id + document_id + metadata
+    3. upsert the batch to Supabase Postgres (pgvector)
     4. on completion: documents.status = "ready"
 ```
 
@@ -65,7 +65,7 @@ It would be entirely possible to ship this product without ever showing a user t
 
 ## Deliverables checklist
 - [ ] Embedding model loaded once per Celery worker process (not reloaded per task — check this specifically, it's an easy performance mistake)
-- [ ] Every Qdrant point payload includes `organization_id`
+- [ ] Every Supabase Postgres (pgvector) point payload includes `organization_id`
 - [ ] `GET /api/documents/{id}` returns chunks in reading order with page/section metadata intact
 - [ ] Document Detail page renders chunk list + metadata panel + file preview
-- [ ] Deleting a document (Day 5's DELETE endpoint) cascades to delete its Qdrant points, filtered by `document_id` + `organization_id`
+- [ ] Deleting a document (Day 5's DELETE endpoint) cascades to delete its Supabase Postgres (pgvector) points, filtered by `document_id` + `organization_id`

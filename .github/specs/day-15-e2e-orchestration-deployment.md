@@ -19,10 +19,10 @@ A self-hosted compliance product's entire value proposition is "runs entirely on
 services:
   postgres    - persistent volume, relational data (Day 2)
   redis       - Celery broker/result backend (Day 5)
-  qdrant      - persistent volume, vector data (Day 6)
+  supabase_postgres      - persistent volume, vector data (Day 6)
   ollama      - persistent volume for pulled models, GPU passthrough if available (Days 8-9)
-  api         - FastAPI app (uvicorn), depends_on: postgres, redis, qdrant
-  worker      - Celery worker, same image as api, different entrypoint, depends_on: postgres, redis, qdrant, ollama
+  api         - FastAPI app (uvicorn), depends_on: postgres, redis, supabase_postgres
+  worker      - Celery worker, same image as api, different entrypoint, depends_on: postgres, redis, supabase_postgres, ollama
   frontend    - built React/Vite static bundle, served via nginx (or served directly by the api image, to avoid a second network hop — a legitimate simplification for a self-hosted single-tenant-per-deployment product)
 ```
 Every page you built across Days 3-14 depends on some subset of this topology being up and correctly networked — this is the day that's finally verified end to end rather than assumed.
@@ -39,11 +39,11 @@ Every page you built across Days 3-14 depends on some subset of this topology be
 - **Ingestion test** (Day 5/6): upload a sample multi-page PDF through the real API, assert it reaches `status="ready"` with the expected chunk count within a defined time budget.
 - **RAG precision test** (Day 7): run the hand-labeled (question, expected supporting chunk) pairs from Day 7 through the full hybrid search + rerank pipeline, assert the correct chunk lands in the top-k at some minimum hit rate. This is the concrete, numeric proof that Day 7's architecture choice (hybrid, not vector-only, plus cross-encoder re-ranking) is actually paying off — not just a theoretical argument anymore.
 - **Grounding test** (Day 9): run several queries through the full LangGraph agent, assert every returned `citation_excerpt` is a verifiable substring of the retrieved evidence — exercising the Day 9 validator against real runs, not just the isolated unit tests written that day.
-- **E2E smoke test**: bring up the full `docker-compose` stack from a clean state, upload a document via the real API, run one agent query via SSE (Day 10), assert a `finding` event arrives with a valid citation, assert it's queryable back from the Reports API (Day 11). This is the single test that proves every service boundary in the topology above actually talks to its neighbors correctly — the test that would have caught it if, say, the worker container couldn't reach Qdrant.
+- **E2E smoke test**: bring up the full `docker-compose` stack from a clean state, upload a document via the real API, run one agent query via SSE (Day 10), assert a `finding` event arrives with a valid citation, assert it's queryable back from the Reports API (Day 11). This is the single test that proves every service boundary in the topology above actually talks to its neighbors correctly — the test that would have caught it if, say, the worker container couldn't reach Supabase Postgres (pgvector).
 
 ## Deliverables checklist
 - [ ] `docker-compose.yml` brings up all seven services with one command, no manual steps
 - [ ] Multi-stage builds for both the `api`/`worker` image and the `frontend` image
 - [ ] `pnpm-lock.yaml` committed, build uses `--frozen-lockfile`, and a deliberately drifted lockfile is confirmed to fail the build (test the guardrail, don't just trust it)
 - [ ] Full test suite (multi-tenancy, ingestion, RAG precision, grounding, E2E smoke) runnable via a single CI command
-- [ ] A documented rollback/restart procedure for each stateful service (Postgres, Qdrant, Redis volumes) — this is what makes the "your infrastructure, your control" promise operationally real, not just architecturally true
+- [ ] A documented rollback/restart procedure for each stateful service (Postgres, Supabase Postgres (pgvector), Redis volumes) — this is what makes the "your infrastructure, your control" promise operationally real, not just architecturally true
